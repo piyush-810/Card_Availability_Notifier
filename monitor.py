@@ -99,8 +99,6 @@ def follow_website_flow():
         raise
 
 def check_for_changes():
-    send_telegram_update("TEST ALERT: Bot is working!", is_alert=True)
-    return True  # Simulate card availability
     """Main monitoring function"""
     try:
         # Follow exact website flow
