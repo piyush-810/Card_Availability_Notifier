@@ -2,62 +2,64 @@ import requests
 from bs4 import BeautifulSoup
 import os
 import sys
+from urllib.parse import urljoin
 
 # Configuration
-URL = "https://gts.gradtrak.com/SeasonalPortal/DataEntry"
-TARGET_TEXT = "There are no cards to type. Try again soon!"
-BOT_TOKEN = os.getenv("BOT_TOKEN", "")  # Second parameter is default value
-CHAT_ID = os.getenv("CHAT_ID", "")
+BASE_URL = "https://gts.gradtrak.com/"
+LOGIN_URL = urljoin(BASE_URL, "GTO/Profiles/SignIn.aspx")
+TARGET_URL = urljoin(BASE_URL, "SeasonalPortal/DataEntry")
+TARGET_ELEMENT = {'class': 'alert alert-danger'}  # More specific than text search
 
-# Validate critical variables
-if not all([BOT_TOKEN, CHAT_ID]):
-    print("❌ ERROR: Missing required environment variables")
-    print(f"BOT_TOKEN present: {bool(BOT_TOKEN)}")
-    print(f"CHAT_ID present: {bool(CHAT_ID)}")
-    sys.exit(1)
+def get_authenticated_session():
+    session = requests.Session()
+    
+    # Get login page for ASP.NET tokens
+    login_page = session.get(LOGIN_URL)
+    soup = BeautifulSoup(login_page.text, 'html.parser')
+    
+    # Prepare ASP.NET form data
+    payload = {
+        '__VIEWSTATE': soup.find('input', {'name': '__VIEWSTATE'})['value'],
+        '__VIEWSTATEGENERATOR': soup.find('input', {'name': '__VIEWSTATEGENERATOR'})['value'],
+        '__EVENTVALIDATION': soup.find('input', {'name': '__EVENTVALIDATION'})['value'],
+        'ctl00$ContentPlaceHolder1$Login1$UserName': os.getenv("PORTAL_USERNAME"),
+        'ctl00$ContentPlaceHolder1$Login1$Password': os.getenv("PORTAL_PASSWORD"),
+        'ctl00$ContentPlaceHolder1$Login1$LoginButton': 'Sign In'
+    }
+    
+    # Submit login
+    session.post(LOGIN_URL, data=payload)
+    return session
 
 def check_for_change():
     try:
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
-        }
-        response = requests.get(URL, headers=headers, timeout=10)
-        response.raise_for_status()
+        session = get_authenticated_session()
+        response = session.get(TARGET_URL)
+        soup = BeautifulSoup(response.text, 'html.parser')
         
-        soup = BeautifulSoup(response.text, "html.parser")
-        page_text = soup.get_text()
+        # Check for specific element instead of raw text
+        target_div = soup.find('div', TARGET_ELEMENT)
         
-        print(f"🔍 Page content preview:\n{page_text[:200]}...")
-        
-        if TARGET_TEXT not in page_text:
-            send_telegram_alert("🚨 CARDS AVAILABLE! The message disappeared!")
+        if not target_div:  # Element disappeared
+            send_telegram_alert("🚨 CARDS AVAILABLE! The alert div disappeared!")
             return True
             
-        print("ℹ️ No changes detected - target text still present")
+        print("ℹ️ Target element still present")
         return False
         
     except Exception as e:
-        error_msg = f"⚠️ Monitoring error: {str(e)}"
-        print(error_msg)
-        send_telegram_alert(error_msg)
+        send_telegram_alert(f"⚠️ Monitoring failed: {str(e)}")
         return False
 
 def send_telegram_alert(message):
-    try:
-        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-        params = {
-            "chat_id": CHAT_ID,
-            "text": message,
-        }
-        response = requests.get(url, params=params, timeout=5)
-        response.raise_for_status()
-        print("✅ Telegram alert sent successfully")
-        return True
-    except Exception as e:
-        print(f"❌ Failed to send Telegram alert: {str(e)}")
-        return False
+    requests.post(
+        f"https://api.telegram.org/bot{os.getenv('BOT_TOKEN')}/sendMessage",
+        params={'chat_id': os.getenv('CHAT_ID'), 'text': message}
+    )
 
 if __name__ == "__main__":
-    print("🚀 Starting monitoring check")
+    if not all([os.getenv("PORTAL_USERNAME"), os.getenv("PORTAL_PASSWORD")]):
+        print("❌ Missing login credentials")
+        sys.exit(1)
+        
     check_for_change()
-    print("🏁 Monitoring check completed")
