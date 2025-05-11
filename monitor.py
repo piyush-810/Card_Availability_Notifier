@@ -3,8 +3,6 @@ from bs4 import BeautifulSoup
 import time
 import os
 
-
-
 # Configuration
 URL = "https://gts.gradtrak.com/SeasonalPortal/DataEntry"  
 CHECK_INTERVAL = 60  # Seconds between checks (e.g., 60 = 1 minute)
