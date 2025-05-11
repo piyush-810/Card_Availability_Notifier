@@ -1,30 +1,26 @@
 name: Card Availability Monitor
 on:
   schedule:
-    - cron: '*/5 * * * *'  # Runs every 5 minutes
-  workflow_dispatch:       # Allows manual triggering
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
 
 jobs:
   monitor:
     runs-on: ubuntu-latest
-    timeout-minutes: 10    # Preents hanging jobs
+    timeout-minutes: 10
     steps:
-      # 1. Checkout code
       - uses: actions/checkout@v3
-
-      # 2. Set up Python
-      - name: Set up Python 3.10
+      
+      - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
-
-      # 3. Install dependencies
+      
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install requests beautifulsoup4
-
-      # 4. Run monitor script with error handling
+      
       - name: Run monitor
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
@@ -33,14 +29,14 @@ jobs:
           PORTAL_PASSWORD: ${{ secrets.PORTAL_PASSWORD }}
         run: |
           python monitor.py > output.log 2>&1 || (echo "Script failed" && exit 1)
-          
-      # 5. Upload debug artifacts (always runs)
+      
+      # SOLUTION: Using v4 instead of v3
       - name: Upload debug files
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: debug-${{ github.run_id }}
           path: |
             output.log
             page.html
-          retention-days: 1  # Auto-deletes after 24 hours
+          retention-days: 1
