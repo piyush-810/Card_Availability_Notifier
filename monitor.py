@@ -8,66 +8,72 @@ from urllib.parse import urljoin
 BASE_URL = "https://gts.gradtrak.com/"
 LOGIN_URL = urljoin(BASE_URL, "GTO/Profiles/SignIn.aspx")
 TARGET_URL = urljoin(BASE_URL, "SeasonalPortal/DataEntry")
-TARGET_ELEMENT = {'class': 'alert alert-danger'}  # Changed to danger per your screenshot
+TARGET_TEXT = "There are no cards to type. Try again soon!"
 
 def get_authenticated_session():
     session = requests.Session()
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Origin': BASE_URL,
+        'Referer': LOGIN_URL
     }
     
     try:
-        # Get login page for ASP.NET tokens
+        # Initial GET to capture tokens
         login_page = session.get(LOGIN_URL, headers=headers)
         login_page.raise_for_status()
         soup = BeautifulSoup(login_page.text, 'html.parser')
-        
-        # Prepare ASP.NET form data
+
+        # Prepare payload with EXACT field names
         payload = {
             '__VIEWSTATE': soup.find('input', {'name': '__VIEWSTATE'})['value'],
             '__VIEWSTATEGENERATOR': soup.find('input', {'name': '__VIEWSTATEGENERATOR'})['value'],
             '__EVENTVALIDATION': soup.find('input', {'name': '__EVENTVALIDATION'})['value'],
-            'ctl00$ContentPlaceHolder1$Login1$UserName': os.getenv("PORTAL_USERNAME"),
-            'ctl00$ContentPlaceHolder1$Login1$Password': os.getenv("PORTAL_PASSWORD"),
-            'ctl00$ContentPlaceHolder1$Login1$LoginButton': 'Sign In'
+            'txtEmail': os.getenv("PORTAL_USERNAME"),  # Email field
+            'txtPassword': os.getenv("PORTAL_PASSWORD"),  # Password field
+            'btnSignIn': 'Sign In'  # Login button ID from your screenshot
         }
-        
+
         # Submit login
-        login_response = session.post(LOGIN_URL, data=payload, headers=headers)
-        login_response.raise_for_status()
+        response = session.post(LOGIN_URL, data=payload, headers=headers)
+        response.raise_for_status()
         
         # Verify login success
-        if "SignOut" not in login_response.text:
-            raise Exception("Login failed - check credentials or page structure")
+        if "SignOut" not in response.text:
+            with open("login_failure.html", "w", encoding="utf-8") as f:
+                f.write(response.text)
+            raise Exception("Login failed - check login_failure.html")
             
         return session
         
     except Exception as e:
-        send_telegram_alert(f"🔐 Login failed: {str(e)}")
-        raise
+        raise Exception(f"Login error: {str(e)}")
 
 def check_for_change():
     try:
+        print("🔐 Authenticating...")
         session = get_authenticated_session()
+        
+        print("🌐 Fetching target page...")
         response = session.get(TARGET_URL)
         response.raise_for_status()
         
-        # Save page content for debugging
+        # Save page for debugging
         with open("page.html", "w", encoding="utf-8") as f:
             f.write(response.text)
         
         soup = BeautifulSoup(response.text, 'html.parser')
+        page_text = soup.get_text()
         
-        # Check for specific element
-        target_div = soup.find('div', TARGET_ELEMENT)
+        print(f"🔍 Page content preview:\n{page_text[:200]}...")
         
-        if target_div:  # Element exists (no cards available)
-            print(f"ℹ️ Target element found: {target_div.get_text(strip=True)[:50]}...")
-            return False
-        else:  # Element disappeared (cards available)
-            send_telegram_alert("🚨 CARDS AVAILABLE! The alert div disappeared!")
+        if TARGET_TEXT not in page_text:
+            send_telegram_alert("🚨 CARDS AVAILABLE! The message disappeared!")
             return True
             
+        print("ℹ️ No changes detected")
+        return False
+        
     except Exception as e:
         error_msg = f"⚠️ Monitoring failed: {str(e)}"
         print(error_msg)
@@ -92,13 +98,18 @@ def send_telegram_alert(message):
 
 if __name__ == "__main__":
     # Validate environment variables
-    required_vars = ["PORTAL_USERNAME", "PORTAL_PASSWORD", "BOT_TOKEN", "CHAT_ID"]
-    missing_vars = [var for var in required_vars if not os.getenv(var)]
+    required_vars = {
+        "PORTAL_USERNAME": os.getenv("PORTAL_USERNAME"),
+        "PORTAL_PASSWORD": os.getenv("PORTAL_PASSWORD"),
+        "BOT_TOKEN": os.getenv("BOT_TOKEN"),
+        "CHAT_ID": os.getenv("CHAT_ID")
+    }
     
+    missing_vars = [k for k, v in required_vars.items() if not v]
     if missing_vars:
         error_msg = f"❌ Missing environment variables: {', '.join(missing_vars)}"
         print(error_msg)
-        if "BOT_TOKEN" in os.environ and "CHAT_ID" in os.environ:
+        if required_vars["BOT_TOKEN"] and required_vars["CHAT_ID"]:
             send_telegram_alert(error_msg)
         sys.exit(1)
         
