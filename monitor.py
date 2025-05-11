@@ -3,10 +3,10 @@ from bs4 import BeautifulSoup
 import time
 
 # Configuration
-URL = "https://example.com"  # Replace with your target webpage
+URL = "https://gts.gradtrak.com/SeasonalPortal/DataEntry"  
 CHECK_INTERVAL = 60  # Seconds between checks (e.g., 60 = 1 minute)
 TARGET_TEXT = "There are no cards to type. Try again soon!"
-BOT_TOKEN = "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"  # Replace with your bot token
+BOT_TOKEN = "7350093859:AAF5uqLs1xcalkpzqx1SnMvO2RUVZajGzXw"  # Replace with your bot token
 CHAT_ID = "6473440321"  # Your chat ID
 
 def check_for_change():
