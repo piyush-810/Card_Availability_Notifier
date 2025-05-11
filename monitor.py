@@ -51,6 +51,10 @@ def check_for_change():
         send_telegram_alert(f"⚠️ Monitoring failed: {str(e)}")
         return False
 
+    # Save page content for debugging
+    with open("page.html", "w", encoding="utf-8") as f:
+        f.write(response.text)
+
 def send_telegram_alert(message):
     requests.post(
         f"https://api.telegram.org/bot{os.getenv('BOT_TOKEN')}/sendMessage",
