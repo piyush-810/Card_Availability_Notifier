@@ -1,7 +1,7 @@
 name: Card Availability Monitor
 on:
   schedule:
-    - cron: '*/5 * * * *'  # Every 5 minutes
+    - cron: '*/5 * * * *'
   workflow_dispatch:
 
 jobs:
@@ -25,9 +25,11 @@ jobs:
           CHAT_ID: ${{ secrets.CHAT_ID }}
           PORTAL_USERNAME: ${{ secrets.PORTAL_USERNAME }}
           PORTAL_PASSWORD: ${{ secrets.PORTAL_PASSWORD }}
-        run: |
-          python monitor.py > output.log 2>&1 || echo "Script failed"
-          
+        run: python monitor.py > output.log 2>&1 || echo "Script failed"
+      
+      - name: Configure artifact upload
+        run: echo "{ \"artifact_server_url\": \"$ACTIONS_RUNTIME_URL\" }" > $RUNNER_TEMP/.artifactrc
+      
       - name: Upload debug artifacts
         if: always()
         uses: actions/upload-artifact@v3
