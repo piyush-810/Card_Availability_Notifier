@@ -1,13 +1,16 @@
 import requests
 from bs4 import BeautifulSoup
 import time
+import os
+
+
 
 # Configuration
 URL = "https://gts.gradtrak.com/SeasonalPortal/DataEntry"  
 CHECK_INTERVAL = 60  # Seconds between checks (e.g., 60 = 1 minute)
 TARGET_TEXT = "There are no cards to type. Try again soon!"
-BOT_TOKEN = "7350093859:AAF5uqLs1xcalkpzqx1SnMvO2RUVZajGzXw"  
-CHAT_ID = "6473440321"  
+BOT_TOKEN = os.environ["BOT_TOKEN"]  
+CHAT_ID = os.environ["CHAT_ID"]  
 
 def check_for_change():
     try:
