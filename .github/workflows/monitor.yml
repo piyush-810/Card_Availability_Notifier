@@ -1,7 +1,7 @@
 name: Webpage Monitor
 on:
   schedule:
-    - cron: '*/15 * * * *'  # Every 15 minutes
+    - cron: '*/1 * * * *'  # Every 1 minutes
   workflow_dispatch:
 
 jobs:
