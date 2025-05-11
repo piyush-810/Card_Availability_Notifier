@@ -2,6 +2,7 @@ import requests
 from bs4 import BeautifulSoup
 import os
 import sys
+import time
 from urllib.parse import urljoin
 
 # Configuration
@@ -19,56 +20,77 @@ def get_authenticated_session():
     }
     
     try:
-        # Initial GET to capture tokens
+        # Step 1: Get login page
+        print("🔄 Loading login page...")
         login_page = session.get(LOGIN_URL, headers=headers)
         login_page.raise_for_status()
+        
+        # Save login page for debugging
+        with open("login_page_source.html", "w", encoding="utf-8") as f:
+            f.write(login_page.text)
+        print("💾 Saved login page source")
+
         soup = BeautifulSoup(login_page.text, 'html.parser')
 
-        # Prepare payload with EXACT field names
+        # Step 2: Prepare payload with dynamic field detection
         payload = {
             '__VIEWSTATE': soup.find('input', {'name': '__VIEWSTATE'})['value'],
             '__VIEWSTATEGENERATOR': soup.find('input', {'name': '__VIEWSTATEGENERATOR'})['value'],
             '__EVENTVALIDATION': soup.find('input', {'name': '__EVENTVALIDATION'})['value'],
-            'txtEmail': os.getenv("PORTAL_USERNAME"),  # Email field
-            'txtPassword': os.getenv("PORTAL_PASSWORD"),  # Password field
-            'btnSignIn': 'Sign In'  # Login button ID from your screenshot
+            'txtEmail': os.getenv("PORTAL_USERNAME"),
+            'txtPassword': os.getenv("PORTAL_PASSWORD"),
+            'btnSignIn': 'Sign In'
         }
 
-        # Submit login
+        # Add delay to prevent brute-force detection
+        time.sleep(5)
+
+        # Step 3: Submit login
+        print("🔐 Attempting login...")
         response = session.post(LOGIN_URL, data=payload, headers=headers)
         response.raise_for_status()
         
-        # Verify login success
-        if "SignOut" not in response.text:
-            with open("login_failure.html", "w", encoding="utf-8") as f:
-                f.write(response.text)
-            raise Exception("Login failed - check login_failure.html")
+        # Save login response for debugging
+        with open("login_response.html", "w", encoding="utf-8") as f:
+            f.write(response.text)
+
+        # Step 4: Verify login success
+        success_markers = ["SignOut", "Dashboard", "Welcome"]
+        if not any(marker in response.text for marker in success_markers):
+            raise Exception("Login failed - no success markers detected")
             
+        print("✅ Login successful")
         return session
         
     except Exception as e:
-        raise Exception(f"Login error: {str(e)}")
+        error_msg = f"❌ Login failed: {str(e)}"
+        print(error_msg)
+        if 'login_response.html' in os.listdir():
+            print("📁 See login_response.html for details")
+        raise Exception(error_msg)
 
 def check_for_change():
     try:
-        print("🔐 Authenticating...")
         session = get_authenticated_session()
         
-        print("🌐 Fetching target page...")
+        print("🌐 Loading target page...")
         response = session.get(TARGET_URL)
         response.raise_for_status()
         
-        # Save page for debugging
-        with open("page.html", "w", encoding="utf-8") as f:
+        # Save target page for debugging
+        with open("target_page.html", "w", encoding="utf-8") as f:
             f.write(response.text)
         
         soup = BeautifulSoup(response.text, 'html.parser')
         page_text = soup.get_text()
         
-        print(f"🔍 Page content preview:\n{page_text[:200]}...")
+        # Debug output
+        print("🔍 Page content preview:")
+        print(page_text[:200] + "...")
         
         if TARGET_TEXT not in page_text:
             send_telegram_alert("🚨 CARDS AVAILABLE! The message disappeared!")
+            print("⚠️ Change detected - notification sent")
             return True
             
         print("ℹ️ No changes detected")
@@ -92,25 +114,32 @@ def send_telegram_alert(message):
             timeout=10
         )
         response.raise_for_status()
-        print("✅ Telegram alert sent")
+        print("📤 Telegram alert sent successfully")
     except Exception as e:
         print(f"❌ Failed to send Telegram alert: {str(e)}")
 
 if __name__ == "__main__":
-    # Validate environment variables
-    required_vars = {
-        "PORTAL_USERNAME": os.getenv("PORTAL_USERNAME"),
-        "PORTAL_PASSWORD": os.getenv("PORTAL_PASSWORD"),
-        "BOT_TOKEN": os.getenv("BOT_TOKEN"),
-        "CHAT_ID": os.getenv("CHAT_ID")
-    }
-    
-    missing_vars = [k for k, v in required_vars.items() if not v]
-    if missing_vars:
-        error_msg = f"❌ Missing environment variables: {', '.join(missing_vars)}"
-        print(error_msg)
-        if required_vars["BOT_TOKEN"] and required_vars["CHAT_ID"]:
-            send_telegram_alert(error_msg)
-        sys.exit(1)
+    try:
+        # Validate environment variables
+        required_vars = {
+            "BOT_TOKEN": os.getenv("BOT_TOKEN"),
+            "CHAT_ID": os.getenv("CHAT_ID"),
+            "PORTAL_USERNAME": os.getenv("PORTAL_USERNAME"),
+            "PORTAL_PASSWORD": os.getenv("PORTAL_PASSWORD")
+        }
         
-    check_for_change()
+        missing_vars = [k for k, v in required_vars.items() if not v]
+        if missing_vars:
+            error_msg = f"❌ Missing environment variables: {', '.join(missing_vars)}"
+            print(error_msg)
+            if required_vars.get("BOT_TOKEN") and required_vars.get("CHAT_ID"):
+                send_telegram_alert(error_msg)
+            sys.exit(1)
+            
+        print("🚀 Starting monitoring check")
+        check_for_change()
+        print("🏁 Monitoring complete")
+        
+    except Exception as e:
+        print(f"🔥 Critical error: {str(e)}")
+        sys.exit(1)
