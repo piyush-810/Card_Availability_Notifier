@@ -1,13 +1,13 @@
 name: Card Availability Monitor
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '*/5 * * * *'  # Every 5 minutes
   workflow_dispatch:
 
 jobs:
   monitor:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v3
       
@@ -21,6 +21,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests beautifulsoup4
       
+      - name: Configure artifact upload
+        run: |
+          mkdir -p $RUNNER_TEMP/artifacts
+          echo "{ \"artifact_server_url\": \"$ACTIONS_RUNTIME_URL\" }" > $RUNNER_TEMP/.artifactrc
+      
       - name: Run monitor
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
@@ -28,15 +33,21 @@ jobs:
           PORTAL_USERNAME: ${{ secrets.PORTAL_USERNAME }}
           PORTAL_PASSWORD: ${{ secrets.PORTAL_PASSWORD }}
         run: |
-          python monitor.py > output.log 2>&1 || (echo "Script failed" && exit 1)
+          python monitor.py > output.log 2>&1 || echo "::error::Monitoring failed"
       
-      # SOLUTION: Using v4 instead of v3
-      - name: Upload debug files
+      - name: Upload debug artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: debug-${{ github.run_id }}
           path: |
             output.log
             page.html
+            login_failure.html
           retention-days: 1
+      
+      - name: Show run summary
+        if: always()
+        run: |
+          echo "=== Run Summary ==="
+          [ -f output.log ] && grep -E '🔐|🌐|🔍|ℹ️|⚠️|✅|❌' output.log || echo "No debug output found"
