@@ -6,8 +6,8 @@ import time
 URL = "https://gts.gradtrak.com/SeasonalPortal/DataEntry"  
 CHECK_INTERVAL = 60  # Seconds between checks (e.g., 60 = 1 minute)
 TARGET_TEXT = "There are no cards to type. Try again soon!"
-BOT_TOKEN = "7350093859:AAF5uqLs1xcalkpzqx1SnMvO2RUVZajGzXw"  # Replace with your bot token
-CHAT_ID = "6473440321"  # Your chat ID
+BOT_TOKEN = "7350093859:AAF5uqLs1xcalkpzqx1SnMvO2RUVZajGzXw"  
+CHAT_ID = "6473440321"  
 
 def check_for_change():
     try:
